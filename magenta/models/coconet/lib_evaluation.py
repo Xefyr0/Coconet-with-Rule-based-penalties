@@ -15,11 +15,11 @@
 """Helpers for evaluating the log likelihood of pianorolls under a model."""
 import time
 
-from magenta.models.coconet import lib_tfutil
-from magenta.models.coconet import lib_util
+import lib_tfutil
+import lib_util
 import numpy as np
-from scipy.misc import logsumexp
-import tensorflow.compat.v1 as tf
+from scipy.special import logsumexp
+import tensorflow.compat.v1 as tfcompat
 
 
 def evaluate(evaluator, pianorolls):
@@ -43,7 +43,7 @@ def evaluate(evaluator, pianorolls):
   unit_losses = []
 
   for pi, pianoroll in enumerate(pianorolls):
-    tf.logging.info("evaluating piece %d", pi)
+    tfcompat.logging.info("evaluating piece %d", pi)
     start_time = time.time()
 
     unit_loss = -evaluator(pianoroll)
@@ -69,7 +69,7 @@ def evaluate(evaluator, pianorolls):
 
 
 def _report(losses, prefix=""):
-  tf.logging.info("%s loss %s", prefix, _statstr(_flatcat(losses)))
+  tfcompat.logging.info("%s loss %s", prefix, _statstr(_flatcat(losses)))
 
 
 def _stats(x):

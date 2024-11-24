@@ -19,15 +19,16 @@ from __future__ import print_function
 
 import os
 
-from magenta.models.coconet import lib_data
-from magenta.models.coconet import lib_evaluation
-from magenta.models.coconet import lib_graph
-from magenta.models.coconet import lib_util
+import lib_data
+import lib_evaluation
+import lib_graph
+import lib_util
 import numpy as np
-import tensorflow.compat.v1 as tf
+import tensorflow.compat.v1 as tfcompat
+import tensorflow as tf
 
-FLAGS = tf.app.flags.FLAGS
-flags = tf.app.flags
+FLAGS = tfcompat.app.flags.FLAGS
+flags = tfcompat.app.flags
 flags.DEFINE_string('data_dir', None,
                     'Path to the base directory for different datasets.')
 flags.DEFINE_string('eval_logdir', None,
@@ -49,22 +50,21 @@ flags.DEFINE_string('sample_npy_path', None, 'Path to samples to be evaluated.')
 
 EVAL_SUBDIR = 'eval_stats'
 
-
 def main(unused_argv):
   checkpoint_dir = FLAGS.checkpoint
   if not checkpoint_dir:
     # If a checkpoint directory is not specified, see if there is only one
     # subdir in this folder and use that.
-    possible_checkpoint_dirs = tf.gfile.ListDirectory(FLAGS.eval_logdir)
+    possible_checkpoint_dirs = tfcompat.gfile.ListDirectory(FLAGS.eval_logdir)
     possible_checkpoint_dirs = [
         i for i in possible_checkpoint_dirs if
-        tf.gfile.IsDirectory(os.path.join(FLAGS.eval_logdir, i))]
+        tfcompat.gfile.IsDirectory(os.path.join(FLAGS.eval_logdir, i))]
     if EVAL_SUBDIR in possible_checkpoint_dirs:
       possible_checkpoint_dirs.remove(EVAL_SUBDIR)
     if len(possible_checkpoint_dirs) == 1:
       checkpoint_dir = os.path.join(
           FLAGS.eval_logdir, possible_checkpoint_dirs[0])
-      tf.logging.info('Using checkpoint dir: %s', checkpoint_dir)
+      tfcompat.logging.info('Using checkpoint dir: %s', checkpoint_dir)
     else:
       raise ValueError(
           'Need to provide a path to checkpoint directory or use an '
@@ -75,7 +75,7 @@ def main(unused_argv):
         'Set flag eval_logdir to specify a path for saving eval statistics.')
   else:
     eval_logdir = os.path.join(FLAGS.eval_logdir, EVAL_SUBDIR)
-    tf.gfile.MakeDirs(eval_logdir)
+    tfcompat.gfile.MakeDirs(eval_logdir)
 
   evaluator = lib_evaluation.BaseEvaluator.make(
       FLAGS.unit, wmodel=wmodel, chronological=FLAGS.chronological)
@@ -91,7 +91,7 @@ def main(unused_argv):
   if FLAGS.sample_npy_path is not None:
     evaluate_paths([FLAGS.sample_npy_path], evaluator, wmodel.hparams,
                    eval_logdir)
-  tf.logging.info('Done')
+  tfcompat.logging.info('Done')
 
 
 def evaluate_fold(fold, evaluator, hparams, eval_logdir, checkpoint_dir):
@@ -106,7 +106,7 @@ def evaluate_fold(fold, evaluator, hparams, eval_logdir, checkpoint_dir):
   pianorolls = get_fold_pianorolls(fold, hparams)
 
   rval = lib_evaluation.evaluate(evaluator, pianorolls)
-  tf.logging.info('Writing to path: %s' % log_fpath)
+  tfcompat.logging.info('Writing to path: %s' % log_fpath)
   with lib_util.atomic_file(log_fpath) as p:
     np.savez_compressed(p, **rval)
 
@@ -124,7 +124,7 @@ def evaluate_paths(paths, evaluator, unused_hparams, eval_logdir):
 
     pianorolls = get_path_pianorolls(path)
     rval = lib_evaluation.evaluate(evaluator, pianorolls)
-    tf.logging.info('Writing evaluation statistics to %s', log_fpath)
+    tfcompat.logging.info('Writing evaluation statistics to %s', log_fpath)
     with lib_util.atomic_file(log_fpath) as p:
       np.savez_compressed(p, **rval)
 
@@ -132,7 +132,7 @@ def evaluate_paths(paths, evaluator, unused_hparams, eval_logdir):
 def get_fold_pianorolls(fold, hparams):
   dataset = lib_data.get_dataset(FLAGS.data_dir, hparams, fold)
   pianorolls = dataset.get_pianorolls()
-  tf.logging.info('Retrieving pianorolls from %s set of %s dataset.',
+  tfcompat.logging.info('Retrieving pianorolls from %s set of %s dataset.',
                   fold, hparams.dataset)
   print_statistics(pianorolls)
   if FLAGS.fold_index is not None:
@@ -141,12 +141,12 @@ def get_fold_pianorolls(fold, hparams):
 
 
 def get_path_pianorolls(path):
-  pianoroll_fpath = os.path.join(tf.resource_loader.get_data_files_path(), path)
-  tf.logging.info('Retrieving pianorolls from %s', pianoroll_fpath)
-  with tf.gfile.Open(pianoroll_fpath, 'r') as p:
+  pianoroll_fpath = os.path.join(tfcompat.resource_loader.get_data_files_path(), path)
+  tfcompat.logging.info('Retrieving pianorolls from %s', pianoroll_fpath)
+  with tfcompat.gfile.Open(pianoroll_fpath, 'r') as p:
     pianorolls = np.load(p)
   if isinstance(pianorolls, np.ndarray):
-    tf.logging.info(pianorolls.shape)
+    tfcompat.logging.info(pianorolls.shape)
   print_statistics(pianorolls)
   return pianorolls
 
@@ -154,19 +154,19 @@ def get_path_pianorolls(path):
 def print_statistics(pianorolls):
   """Prints statistics of given pianorolls, such as max and unique length."""
   if isinstance(pianorolls, np.ndarray):
-    tf.logging.info(pianorolls.shape)
-  tf.logging.info('# of total pieces in set: %d', len(pianorolls))
+    tfcompat.logging.info(pianorolls.shape)
+  tfcompat.logging.info('# of total pieces in set: %d', len(pianorolls))
   lengths = [len(roll) for roll in pianorolls]
   if len(np.unique(lengths)) > 1:
-    tf.logging.info('lengths %s', np.sort(lengths))
-  tf.logging.info('max_len %d', max(lengths))
-  tf.logging.info(
+    tfcompat.logging.info('lengths %s', np.sort(lengths))
+  tfcompat.logging.info('max_len %d', max(lengths))
+  tfcompat.logging.info(
       'unique lengths %s',
       np.unique(sorted(pianoroll.shape[0] for pianoroll in pianorolls)))
-  tf.logging.info('shape %s', pianorolls[0].shape)
+  tfcompat.logging.info('shape %s', pianorolls[0].shape)
 
 
 if __name__ == '__main__':
-  tf.disable_v2_behavior()
-  tf.logging.set_verbosity(tf.logging.INFO)
-  tf.app.run()
+  tfcompat.disable_v2_behavior()
+  tfcompat.logging.set_verbosity(tfcompat.logging.INFO)
+  tfcompat.app.run()

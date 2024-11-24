@@ -15,9 +15,9 @@
 """Classes for datasets and batches."""
 import os
 
-from magenta.models.coconet import lib_mask
-from magenta.models.coconet import lib_pianoroll
-from magenta.models.coconet import lib_util
+import lib_mask
+import lib_pianoroll
+import lib_util
 import numpy as np
 import tensorflow.compat.v1 as tf
 

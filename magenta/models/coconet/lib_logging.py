@@ -20,7 +20,7 @@ from __future__ import print_function
 import contextlib
 import os
 
-from magenta.models.coconet import lib_util
+import lib_util
 import numpy as np
 
 

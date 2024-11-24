@@ -18,9 +18,9 @@ set -x
 set -e
 
 # Change this to directory where you want to save experiment logs:
-logdir=$HOME/logs
+logdir=$HOME/logdir/
 # Change this to directory where data is loaded from:
-data_dir=$HOME/data/
+data_dir=$HOME/JSB-Chorales-dataset/
 # Change this to your dataset class, which can be defined in lib_data.py.
 dataset=Jsb16thSeparated
 
@@ -34,7 +34,7 @@ maskout_method=orderless
 num_layers=32
 num_filters=64
 batch_size=10
-use_sep_conv=True
+use_sep_conv=False
 architecture='dilated'
 num_dilation_blocks=1
 dilate_time_only=False

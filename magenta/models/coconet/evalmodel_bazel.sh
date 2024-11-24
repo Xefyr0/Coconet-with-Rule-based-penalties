@@ -25,10 +25,10 @@ set -e
 checkpoint=$1
 
 # Change this to where data is loaded from.
-data_dir="testdata"
+data_dir=$HOME/JSB-Chorales-dataset/
 
 # Change this to where evaluation results are stored.
-eval_logdir="eval_logdir"
+eval_logdir=$HOME/eval_logdir/
 
 # Evaluation settings.
 fold=valid

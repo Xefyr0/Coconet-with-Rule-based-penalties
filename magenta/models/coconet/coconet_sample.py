@@ -18,13 +18,13 @@ import os
 import re
 import time
 
-from magenta.models.coconet import lib_graph
-from magenta.models.coconet import lib_logging
-from magenta.models.coconet import lib_mask
-from magenta.models.coconet import lib_pianoroll
-from magenta.models.coconet import lib_sampling
-from magenta.models.coconet import lib_tfsampling
-from magenta.models.coconet import lib_util
+import lib_graph
+import lib_logging
+import lib_mask
+import lib_pianoroll
+import lib_sampling
+import lib_tfsampling
+import lib_util
 import numpy as np
 import pretty_midi
 import tensorflow.compat.v1 as tf

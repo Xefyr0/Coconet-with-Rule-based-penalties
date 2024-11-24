@@ -20,9 +20,10 @@ from __future__ import print_function
 import collections
 import os
 
-from magenta.models.coconet import lib_hparams
-from magenta.models.coconet import lib_tfutil
-import tensorflow.compat.v1 as tf
+import lib_hparams
+import lib_tfutil
+import tensorflow.compat.v1 as tfcompat
+import tensorflow as tf
 
 
 class CoconetGraph(object):
@@ -91,7 +92,7 @@ class CoconetGraph(object):
     layers = self.hparams.get_conv_arch().layers
     n = len(layers)
     for i, layer in enumerate(layers):
-      with tf.variable_scope('conv%d' % i):
+      with tfcompat.variable_scope('conv%d' % i):
         self.residual_counter += 1
         self.residual_save(featuremaps)
 
@@ -111,8 +112,8 @@ class CoconetGraph(object):
     self.compute_loss(self.cross_entropy)
     self.setup_optimizer()
 
-    for var in tf.trainable_variables():
-      tf.logging.info('%s_%r', var.name, var.get_shape().as_list())
+    for var in tfcompat.trainable_variables():
+      tfcompat.logging.info('%s_%r', var.name, var.get_shape().as_list())
 
   def get_convnet_input(self):
     """Returns concatenates masked out pianorolls with their masks."""
@@ -126,50 +127,50 @@ class CoconetGraph(object):
       # by convolution operations: the padded area will have zero mask,
       # indicating no information to rely on.
       masks = 1. - masks
-    return tf.concat([pianorolls, masks], axis=3)
+    return tfcompat.concat([pianorolls, masks], axis=3)
 
   def setup_optimizer(self):
     """Instantiates learning rate, decay op and train_op among others."""
     # If not training, don't need to add optimizer to the graph.
     if not self.is_training:
-      self.train_op = tf.no_op()
-      self.learning_rate = tf.no_op()
+      self.train_op = tfcompat.no_op()
+      self.learning_rate = tfcompat.no_op()
       return
 
-    self.learning_rate = tf.Variable(
+    self.learning_rate = tfcompat.Variable(
         self.hparams.learning_rate,
         name='learning_rate',
         trainable=False,
-        dtype=tf.float32)
+        dtype=tfcompat.float32)
 
     # FIXME 0.5 -> hparams.decay_rate
-    self.decay_op = tf.assign(self.learning_rate, 0.5 * self.learning_rate)
-    self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
+    self.decay_op = tfcompat.assign(self.learning_rate, 0.5 * self.learning_rate)
+    self.optimizer = tfcompat.train.AdamOptimizer(learning_rate=self.learning_rate)
     self.train_op = self.optimizer.minimize(
-        self.loss, global_step=tf.train.get_global_step())
+        self.loss, global_step=tfcompat.train.get_global_step())
 
   def compute_predictions(self, logits):
     if self.hparams.use_softmax_loss:
-      return tf.nn.softmax(logits, dim=2)
-    return tf.nn.sigmoid(logits)
+      return tfcompat.nn.softmax(logits, axis=2)
+    return tfcompat.nn.sigmoid(logits)
 
   def compute_cross_entropy(self, logits, labels):
     if self.hparams.use_softmax_loss:
-      # don't use tf.nn.softmax_cross_entropy because we need the shape to
+      # don't use tfcompat.nn.softmax_cross_entropy because we need the shape to
       # remain constant
-      return -tf.nn.log_softmax(logits, dim=2) * labels
+      return -tfcompat.nn.log_softmax(logits, axis=2) * labels
     else:
-      return tf.nn.sigmoid_cross_entropy_with_logits(
+      return tfcompat.nn.sigmoid_cross_entropy_with_logits(
           logits=logits, labels=labels)
 
   def compute_loss(self, unreduced_loss):
     """Computes scaled loss based on mask out size."""
     # construct mask to identify zero padding that was introduced to
     # make the batch rectangular
-    batch_duration = tf.shape(self.pianorolls)[1]
-    indices = tf.to_float(tf.range(batch_duration))
-    pad_mask = tf.to_float(
-        indices[None, :, None, None] < self.lengths[:, None, None, None])
+    batch_duration = tfcompat.shape(self.pianorolls)[1]
+    indices = tf.cast(tfcompat.range(batch_duration), tf.float32)
+    pad_mask = tf.cast(
+        indices[None, :, None, None] < self.lengths[:, None, None, None], tf.float32)
 
     # construct mask and its complement, respecting pad mask
     mask = pad_mask * self.masks
@@ -179,37 +180,37 @@ class CoconetGraph(object):
     # #timesteps * #variables per timestep
     variable_axis = 3 if self.hparams.use_softmax_loss else 2
     dd = (
-        self.lengths[:, None, None, None] * tf.to_float(
-            tf.shape(self.pianorolls)[variable_axis]))
-    reduced_dd = tf.reduce_sum(dd)
+        self.lengths[:, None, None, None] * tf.cast(
+            tfcompat.shape(self.pianorolls)[variable_axis], tf.float32))
+    reduced_dd = tfcompat.reduce_sum(dd)
 
     # Compute numbers of variables to be predicted/conditioned on
-    mask_size = tf.reduce_sum(mask, axis=[1, variable_axis], keep_dims=True)
-    unmask_size = tf.reduce_sum(unmask, axis=[1, variable_axis], keep_dims=True)
+    mask_size = tfcompat.reduce_sum(mask, axis=[1, variable_axis], keepdims=True)
+    unmask_size = tfcompat.reduce_sum(unmask, axis=[1, variable_axis], keepdims=True)
 
     unreduced_loss *= pad_mask
     if self.hparams.rescale_loss:
       unreduced_loss *= dd / mask_size
 
     # Compute average loss over entire set of variables
-    self.loss_total = tf.reduce_sum(unreduced_loss) / reduced_dd
+    self.loss_total = tfcompat.reduce_sum(unreduced_loss) / reduced_dd
 
     # Compute separate losses for masked/unmasked variables
     # NOTE: indexing the pitch dimension with 0 because the mask is constant
     # across pitch. Except in the sigmoid case, but then the pitch dimension
     # will have been reduced over.
-    self.reduced_mask_size = tf.reduce_sum(mask_size[:, :, 0, :])
-    self.reduced_unmask_size = tf.reduce_sum(unmask_size[:, :, 0, :])
+    self.reduced_mask_size = tfcompat.reduce_sum(mask_size[:, :, 0, :])
+    self.reduced_unmask_size = tfcompat.reduce_sum(unmask_size[:, :, 0, :])
 
-    assert_partition_op = tf.group(
-        tf.assert_equal(tf.reduce_sum(mask * unmask), 0.),
-        tf.assert_equal(self.reduced_mask_size + self.reduced_unmask_size,
+    assert_partition_op = tfcompat.group(
+        tfcompat.assert_equal(tfcompat.reduce_sum(mask * unmask), 0.),
+        tfcompat.assert_equal(self.reduced_mask_size + self.reduced_unmask_size,
                         reduced_dd))
-    with tf.control_dependencies([assert_partition_op]):
+    with tfcompat.control_dependencies([assert_partition_op]):
       self.loss_mask = (
-          tf.reduce_sum(mask * unreduced_loss) / self.reduced_mask_size)
+          tfcompat.reduce_sum(mask * unreduced_loss) / self.reduced_mask_size)
       self.loss_unmask = (
-          tf.reduce_sum(unmask * unreduced_loss) / self.reduced_unmask_size)
+          tfcompat.reduce_sum(unmask * unreduced_loss) / self.reduced_unmask_size)
 
     # Check which loss to use as objective function.
     self.loss = (
@@ -254,19 +255,19 @@ class CoconetGraph(object):
 
     filter_shape = layer['filters']
     # Instantiate or retrieve filter weights.
-    initializer = tf.keras.initializers.he_normal()
+    initializer = tfcompat.keras.initializers.he_normal()
     regular_convs = (not self.hparams.use_sep_conv or
                      layer_idx < self.hparams.num_initial_regular_conv_layers)
     if regular_convs:
       dilation_rates = layer.get('dilation_rate', 1)
       if isinstance(dilation_rates, int):
         dilation_rates = [dilation_rates] * 2
-      weights = tf.get_variable(
+      weights = tfcompat.get_variable(
           'weights',
           filter_shape,
           initializer=initializer if self.is_training else None)
       stride = layer.get('conv_stride', 1)
-      conv = tf.nn.conv2d(
+      conv = tfcompat.nn.conv2d(
           x,
           weights,
           strides=[1, stride, stride, 1],
@@ -276,11 +277,11 @@ class CoconetGraph(object):
       num_outputs = filter_shape[-1]
       num_splits = layer.get('num_pointwise_splits', 1)
       dilation_rate = layer.get('dilation_rate', [1, 1])
-      tf.logging.info('num_splits %d', num_splits)
-      tf.logging.info('dilation_rate %r', dilation_rate)
+      tfcompat.logging.info('num_splits %d', num_splits)
+      tfcompat.logging.info('dilation_rate %r', dilation_rate)
       if num_splits > 1:
         num_outputs = None
-      conv = tf.layers.separable_conv2d(
+      conv = tfcompat.layers.separable_conv2d(
           x,
           num_outputs,
           filter_shape[:2],
@@ -296,75 +297,75 @@ class CoconetGraph(object):
         print(len(splits), splits[0].shape)
         # TODO(annahuang): support non equal splits.
         pointwise_splits = [
-            tf.layers.dense(splits[i], filter_shape[3]/num_splits,
+            tfcompat.layers.dense(splits[i], filter_shape[3]/num_splits,
                             name='split_%d_%d' % (layer_idx, i))
             for i in range(num_splits)]
-        conv = tf.concat((pointwise_splits), axis=-1)
+        conv = tfcompat.concat((pointwise_splits), axis=-1)
 
     # Compute batch normalization or add biases.
     if self.hparams.batch_norm:
       y = self.apply_batchnorm(conv)
     else:
-      biases = tf.get_variable(
+      biases = tfcompat.get_variable(
           'bias', [conv.get_shape()[-1]],
-          initializer=tf.constant_initializer(0.0))
-      y = tf.nn.bias_add(conv, biases)
+          initializer=tfcompat.constant_initializer(0.0))
+      y = tfcompat.nn.bias_add(conv, biases)
     return y
 
   def apply_batchnorm(self, x):
     """Normalizes batch w/ moving population stats for training, o/w batch."""
     output_dim = x.get_shape()[-1]
-    gammas = tf.get_variable(
+    gammas = tfcompat.get_variable(
         'gamma', [1, 1, 1, output_dim],
-        initializer=tf.constant_initializer(0.1))
-    betas = tf.get_variable(
-        'beta', [output_dim], initializer=tf.constant_initializer(0.))
+        initializer=tfcompat.constant_initializer(0.1))
+    betas = tfcompat.get_variable(
+        'beta', [output_dim], initializer=tfcompat.constant_initializer(0.))
 
-    popmean = tf.get_variable(
+    popmean = tfcompat.get_variable(
         'popmean',
         shape=[1, 1, 1, output_dim],
         trainable=False,
         collections=[
-            tf.GraphKeys.MODEL_VARIABLES, tf.GraphKeys.GLOBAL_VARIABLES
+            tfcompat.GraphKeys.MODEL_VARIABLES, tfcompat.GraphKeys.GLOBAL_VARIABLES
         ],
-        initializer=tf.constant_initializer(0.0))
-    popvariance = tf.get_variable(
+        initializer=tfcompat.constant_initializer(0.0))
+    popvariance = tfcompat.get_variable(
         'popvariance',
         shape=[1, 1, 1, output_dim],
         trainable=False,
         collections=[
-            tf.GraphKeys.MODEL_VARIABLES, tf.GraphKeys.GLOBAL_VARIABLES
+            tfcompat.GraphKeys.MODEL_VARIABLES, tfcompat.GraphKeys.GLOBAL_VARIABLES
         ],
-        initializer=tf.constant_initializer(1.0))
+        initializer=tfcompat.constant_initializer(1.0))
 
     decay = 0.01
     if self.is_training:
-      batchmean, batchvariance = tf.nn.moments(x, [0, 1, 2], keep_dims=True)
+      batchmean, batchvariance = tfcompat.nn.moments(x, [0, 1, 2], keepdims=True)
       mean, variance = batchmean, batchvariance
       updates = [
           popmean.assign_sub(decay * (popmean - mean)),
           popvariance.assign_sub(decay * (popvariance - variance))
       ]
       # make update happen when mean/variance are used
-      with tf.control_dependencies(updates):
-        mean, variance = tf.identity(mean), tf.identity(variance)
+      with tfcompat.control_dependencies(updates):
+        mean, variance = tfcompat.identity(mean), tfcompat.identity(variance)
       self.popstats_by_batchstat[batchmean] = popmean
       self.popstats_by_batchstat[batchvariance] = popvariance
     else:
       mean, variance = popmean, popvariance
 
-    return tf.nn.batch_normalization(x, mean, variance, betas, gammas,
+    return tfcompat.nn.batch_normalization(x, mean, variance, betas, gammas,
                                      self.hparams.batch_norm_variance_epsilon)
 
   def apply_activation(self, x, layer):
-    activation_func = layer.get('activation', tf.nn.relu)
+    activation_func = layer.get('activation', tfcompat.nn.relu)
     return activation_func(x)
 
   def apply_pooling(self, x, layer):
     if 'pooling' not in layer:
       return x
     pooling = layer['pooling']
-    return tf.nn.max_pool(
+    return tfcompat.nn.max_pool(
         x,
         ksize=[1, pooling[0], pooling[1], 1],
         strides=[1, pooling[0], pooling[1], 1],
@@ -373,13 +374,13 @@ class CoconetGraph(object):
 
 def get_placeholders(hparams):
   return dict(
-      pianorolls=tf.placeholder(
-          tf.float32,
+      pianorolls=tfcompat.placeholder(
+          tfcompat.float32,
           [None, None, hparams.num_pitches, hparams.num_instruments]),
-      masks=tf.placeholder(
-          tf.float32,
+      masks=tfcompat.placeholder(
+          tfcompat.float32,
           [None, None, hparams.num_pitches, hparams.num_instruments]),
-      lengths=tf.placeholder(tf.float32, [None]))
+      lengths=tfcompat.placeholder(tfcompat.float32, [None]))
 
 
 def build_graph(is_training,
@@ -390,9 +391,9 @@ def build_graph(is_training,
   """Builds the model graph."""
   if placeholders is None and use_placeholders:
     placeholders = get_placeholders(hparams)
-  initializer = tf.random_uniform_initializer(-hparams.init_scale,
+  initializer = tfcompat.random_uniform_initializer(-hparams.init_scale,
                                               hparams.init_scale)
-  with tf.variable_scope('model', reuse=None, initializer=initializer):
+  with tfcompat.variable_scope('model', reuse=None, initializer=initializer):
     graph = CoconetGraph(
         is_training=is_training,
         hparams=hparams,
@@ -404,16 +405,16 @@ def build_graph(is_training,
 
 def load_checkpoint(path, instantiate_sess=True):
   """Builds graph, loads checkpoint, and returns wrapped model."""
-  tf.logging.info('Loading checkpoint from %s', path)
+  tfcompat.logging.info('Loading checkpoint from %s', path)
   hparams = lib_hparams.load_hparams(path)
   model = build_graph(is_training=False, hparams=hparams)
   wmodel = lib_tfutil.WrappedModel(model, model.loss.graph, hparams)
   if not instantiate_sess:
     return wmodel
   with wmodel.graph.as_default():
-    wmodel.sess = tf.Session()
-    saver = tf.train.Saver()
-    tf.logging.info('loading checkpoint %s', path)
+    wmodel.sess = tfcompat.Session()
+    saver = tfcompat.train.Saver()
+    tfcompat.logging.info('loading checkpoint %s', path)
     chkpt_path = os.path.join(path, 'best_model.ckpt')
     saver.restore(wmodel.sess, chkpt_path)
   return wmodel

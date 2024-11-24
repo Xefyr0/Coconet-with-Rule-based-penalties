@@ -25,10 +25,10 @@ set -e
 checkpoint=$1
 
 # Change this to the path of samples to be evaluated.
-sample_file=samples/generated_result.npy
+sample_file=$HOME/samples/generated_result.npy
 
 # Change this to where evaluation results are stored.
-eval_logdir="eval_logdir"
+eval_logdir=$HOME/eval_logdir/
 
 # Evaluation settings.
 #fold_index=  # Optionally can specify index of specific piece to be evaluated.
