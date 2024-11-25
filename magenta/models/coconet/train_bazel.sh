@@ -25,7 +25,7 @@ data_dir=$HOME/JSB-Chorales-dataset/
 dataset=Jsb16thSeparated
 
 # Data preprocessing.
-crop_piece_len=32
+crop_piece_len=48
 separate_instruments=True
 quantization_level=0.125  # 16th notes
 
