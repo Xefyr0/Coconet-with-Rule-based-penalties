@@ -113,7 +113,7 @@ flags.DEFINE_integer(
 
 flags.DEFINE_float('corrupt_ratio', 0.5, 'Fraction of variables to mask out.')
 # Run parameters.
-flags.DEFINE_integer('num_epochs', 50,
+flags.DEFINE_integer('num_epochs', 100,
                      'The number of epochs to train the model. Default '
                      'is 0, which means to run until terminated '
                      'manually.')

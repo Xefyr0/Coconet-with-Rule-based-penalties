@@ -112,8 +112,8 @@ class CoconetGraph(object):
         logits=self.logits, labels=self.pianorolls)
 
     self.compute_loss(
-        self.cpep_calculator.calculate_voice_range_penalty(self.predictions) + 
-        self.cpep_calculator.calculate_kernel_penalty(self.predictions) + 
+        self.cpep_calculator.calculate_voice_range_penalty(self.predictions) +
+        self.cpep_calculator.calculate_kernel_penalty(self.predictions) +
         self.cpep_calculator.calculate_parallel_perfect_penalty(self.predictions) +
         self.cross_entropy)
     self.setup_optimizer()
