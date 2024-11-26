@@ -284,8 +284,8 @@ class Straight(Architecture):
     _add(
         filters=[2, 2, num_filters, output_depth], activation=lib_util.identity)
 
-    tf.logging.info('num_layers=%d, num_filters=%d',
-                    len(self.layers), num_filters)
+    #tf.logging.info('num_layers=%d, num_filters=%d',
+    #                len(self.layers), num_filters)
     self.name = '%s-%d-%d' % (self.key, len(self.layers), num_filters)
 
   def __str__(self):
@@ -345,12 +345,12 @@ class Dilated(Architecture):
           layer_dilation_rates = [time_dilation_rate, 1]
         else:
           layer_dilation_rates = [time_dilation_rate, pitch_dilation_rate]
-        tf.logging.info('layer_dilation_rates %r', layer_dilation_rates)
+        #tf.logging.info('layer_dilation_rates %r', layer_dilation_rates)
         if len(self.layers) % (interleave_split_every_n_layers + 1) == 0:
           current_num_pointwise_splits = num_pointwise_splits
         else:
           current_num_pointwise_splits = 1
-        tf.logging.info('num_split %d', current_num_pointwise_splits)
+        #tf.logging.info('num_split %d', current_num_pointwise_splits)
         _add(filters=[3, 3, num_filters, num_filters],
              dilation_rate=layer_dilation_rates,
              num_pointwise_splits=current_num_pointwise_splits)
@@ -358,8 +358,8 @@ class Dilated(Architecture):
     _add(
         filters=[2, 2, num_filters, output_depth], activation=lib_util.identity)
 
-    tf.logging.info('num_layers=%d, num_filters=%d',
-                    len(self.layers), num_filters)
+    #tf.logging.info('num_layers=%d, num_filters=%d',
+    #                len(self.layers), num_filters)
     self.name = '%s-%d-%d' % (self.key, len(self.layers), num_filters)
 
   def __str__(self):

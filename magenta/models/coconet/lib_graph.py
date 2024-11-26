@@ -24,6 +24,7 @@ import lib_hparams
 import lib_tfutil
 import tensorflow.compat.v1 as tfcompat
 import tensorflow as tf
+import lib_cpe_penalties as cpep
 
 
 class CoconetGraph(object):
@@ -45,6 +46,7 @@ class CoconetGraph(object):
     self._use_placeholders = use_placeholders
     self.hiddens = []
     self.popstats_by_batchstat = collections.OrderedDict()
+    self.cpep_calculator = cpep.CPEPenaltyCalculator(hparams=hparams)
     self.build()
 
   @property
@@ -109,11 +111,15 @@ class CoconetGraph(object):
     self.cross_entropy = self.compute_cross_entropy(
         logits=self.logits, labels=self.pianorolls)
 
-    self.compute_loss(self.cross_entropy)
+    self.compute_loss(
+        self.cpep_calculator.calculate_voice_range_penalty(self.predictions) + 
+        self.cpep_calculator.calculate_kernel_penalty(self.predictions) + 
+        self.cpep_calculator.calculate_parallel_perfect_penalty(self.predictions) +
+        self.cross_entropy)
     self.setup_optimizer()
 
-    for var in tfcompat.trainable_variables():
-      tfcompat.logging.info('%s_%r', var.name, var.get_shape().as_list())
+    #for var in tfcompat.trainable_variables():
+    #  tfcompat.logging.info('%s_%r', var.name, var.get_shape().as_list())
 
   def get_convnet_input(self):
     """Returns concatenates masked out pianorolls with their masks."""
@@ -277,8 +283,8 @@ class CoconetGraph(object):
       num_outputs = filter_shape[-1]
       num_splits = layer.get('num_pointwise_splits', 1)
       dilation_rate = layer.get('dilation_rate', [1, 1])
-      tfcompat.logging.info('num_splits %d', num_splits)
-      tfcompat.logging.info('dilation_rate %r', dilation_rate)
+      #tfcompat.logging.info('num_splits %d', num_splits)
+      #tfcompat.logging.info('dilation_rate %r', dilation_rate)
       if num_splits > 1:
         num_outputs = None
       conv = tfcompat.layers.separable_conv2d(
@@ -294,7 +300,7 @@ class CoconetGraph(object):
           pointwise_initializer=initializer if self.is_training else None)
       if num_splits > 1:
         splits = tf.split(conv, num_splits, -1)
-        print(len(splits), splits[0].shape)
+        #print(len(splits), splits[0].shape)
         # TODO(annahuang): support non equal splits.
         pointwise_splits = [
             tfcompat.layers.dense(splits[i], filter_shape[3]/num_splits,

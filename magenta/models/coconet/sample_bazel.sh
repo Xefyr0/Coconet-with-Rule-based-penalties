@@ -30,7 +30,7 @@ generation_output_dir=$HOME/samples
 # Generation parameters.
 # Number of samples to generate in a batch.
 gen_batch_size=10
-piece_length=48
+piece_length=64
 strategy=igibbs
 tfsample=true
 
